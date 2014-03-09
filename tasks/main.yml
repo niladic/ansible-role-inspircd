@@ -1,0 +1,10 @@
+---
+ - name: inspircd.conf
+   template: src=inspircd.conf.j2 dest=/usr/local/etc/inspircd/inspircd.conf
+             owner=root group=wheel mode=0444
+   tags: inspircd
+
+ - name: modules.conf
+   template: src=modules.conf.j2 dest=/usr/local/etc/inspircd/modules.conf
+             owner=root group=wheel mode=0444
+   tags: inspircd

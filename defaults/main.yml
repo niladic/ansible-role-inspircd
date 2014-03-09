@@ -1,0 +1,62 @@
+inspircd_conf:
+  server:
+    name: penguin.omega.org.za
+    description: Waddle World
+    network: Omega
+  admin:
+    name: Johnny English
+    nick: MI5
+    email: MI5@the.best.secret.agent
+  binds:
+    - address: ""
+      port: 6697
+      type: clients
+      ssl: gnutls
+    - address: ""
+      port: 6660-6669
+      type: clients
+    - address: ""
+      port: 7000,7001
+      type: servers
+    - address: 1.2.3.4
+      port: 7005
+      type: servers
+      ssl: openssl
+  connects:
+    - deny: 69.254.*
+    - deny: 3ffe::0/32
+      reason: The 6bone address space is deprecated
+    - name: secret
+      parent: main
+      allow: 196.12.*
+      password: secret
+      timeout: 10
+      localmax: 3
+      globalmax: 3
+      maxconnwarn: off
+      useident: no
+      limit: 5000
+      modes: +x
+      requiressl: on
+      motd: secretmotd
+      allowmotdcolors: false
+      port: 6697
+    - name: main
+      allow: '*'
+      timeout: 10
+      pingfreq: 120
+      hardsendq: 1048576
+      softsendq: 8192
+      recvq: 8192
+      threshold: 10
+      commandrate: 1000
+      fakelag: on
+      localmax: 3
+      globalmax: 3
+      useident: no
+      limit: 5000
+      modes: +x
+
+inspircd_modules_conf:
+  modules:
+    - openssl
