@@ -1,10 +1,44 @@
+{##### Set config, so it is easy to change how it is made. #####}
+{% set config = inspircd_conf %}
+{% set default_config = inspircd_default_conf %}
+{##### Macro for optional settings #####}
 {% macro opt(map, key, space=' ') -%}
 {% if key in map %}{{ space }}{{ key }}="{{ map[key] }}"{% endif %}
 {%- endmacro %}
-{% macro confline(name, confmap, mandatory_opts, optional_opts=[], space="\n        ") -%}
+{##### Macro for complete tag #####}
+{% macro conftag_nodefault(name, confmap, mandatory_opts, optional_opts=[], space="\n        ") -%}
 <{{ name }}{% for k in mandatory_opts %}{{ space }}{{ k }}="{{ confmap[k] }}"{% endfor %}{% for k in optional_opts %}{{ opt(confmap, k, "\n        ") }}{% endfor %}>
 {%- endmacro %}
-{% set config = inspircd_conf %}
+{##### Macro for complete tag with fallback to default config #####}
+{% macro conftag(name, confkey, mandatory_opts, optional_opts=[], space="\n        ") -%}
+{% if confkey in config %}
+{{ conftag_nodefault(name, config[confkey], mandatory_opts, optional_opts, space) }}
+{% else %}
+{{ conftag_nodefault(name, default_config[confkey], mandatory_opts, optional_opts, space) }}
+{% endif %}
+{%- endmacro %}
+{##### Macro for multiple tags #####}
+{% macro multitags_nodefaults(name, conflist, mandatory_opts, optional_opts=[], space="\n        ") -%}
+{% for confmap in conflist %}
+{{ conftag_nodefault(name, confmap, mandatory_opts, optional_opts, space) }}
+
+{% endfor %}
+{%- endmacro %}
+{##### Macro for multiple tags with fallback to empty #####}
+{% macro multitags(name, confkey, mandatory_opts, optional_opts=[], space="\n        ") -%}
+{% if confkey in config %}
+{{ multitags_nodefaults(name, config[confkey], mandatory_opts, optional_opts, space) }}
+{% endif %}
+{%- endmacro %}
+{##### Macro for include tag #####}
+{% macro include(name, is_executable=False, is_conf=True) -%}
+{% if is_executable %}
+<include executable="{{ name }}">
+{% else %}
+{# TODO: remove trailing / #}
+<include file="{% if is_conf %}{{ inspircd_conf_path }}/{% endif %}{{ name }}">
+{% endif %}
+{%- endmacro %}
 # {{ ansible_managed }}
 ########################################################################
 #                                                                      #
@@ -67,7 +101,15 @@
 # Executable Include Example:                                         #
 #<include executable="/usr/bin/wget -q -O - http://mynet.net/inspircd.conf">
 #                                                                     #
-
+{% if 'additional_includes' in config %}
+{% for incl in config.additional_includes %}
+{% if 'file' in incl %}
+{{ include(incl.file, False, False) }}
+{% else %}
+{{ include(incl.executable, True, False) }}
+{% endif %}
+{% endfor %}
+{% endif %}
 
 #-#-#-#-#-#-#-#-#-#-#-#  VARIABLE DEFINITIONS  -#-#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
@@ -81,9 +123,8 @@
 # Using variable definitions REQUIRES that the config format be       #
 # changed to "xml" from the default "compat" that uses escape         #
 # sequences such as "\"" and "\n", and does not support <define>      #
-<config format="xml">
-<define name="bindip" value="1.2.2.3">
-<define name="localips" value="&bindip;/24">
+{{ conftag('config', 'config', ['format']) }}
+{{ multitags('define', 'defines', ['name', 'value']) }}
 
 #-#-#-#-#-#-#-#-#-#-#-#-  SERVER DESCRIPTION  -#-#-#-#-#-#-#-#-#-#-#-#-
 #                                                                     #
@@ -109,7 +150,7 @@
         # not contain spaces.
         #network="Omega">
 
-{{ confline('server', config.server, ['name', 'description', 'network'], ['id']) }}
+{{ conftag_nodefault('server', config.server, ['name', 'description', 'network'], ['id']) }}
 
 
 #-#-#-#-#-#-#-#-#-#-#-#-   ADMIN INFORMATION   -#-#-#-#-#-#-#-#-#-#-#-#
@@ -129,7 +170,7 @@
        # but should be for the users to be able to contact you.
        #email="MI5@the.best.secret.agent">
 
-{{ confline('admin', config.admin, ['name', 'nick', 'email']) }}
+{{ conftag_nodefault('admin', config.admin, ['nick', 'email'], ['name']) }}
 
 
 #-#-#-#-#-#-#-#-#-#-#-#-   PORT CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#-
@@ -183,9 +224,7 @@
 #<bind address="" port="7000,7001" type="servers">
 #<bind address="1.2.3.4" port="7005" type="servers" ssl="openssl">
 
-{% for bind in config.binds %}
-{{ confline('bind', bind, ['address', 'port', 'type'], ['ssl']) }}
-{% endfor %}
+{{ multitags_nodefaults('bind', config.binds, ['address', 'port', 'type'], ['ssl']) }}
 
 
 #-#-#-#-#-#-#-#-#-#-  DIE/RESTART CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-
@@ -195,7 +234,7 @@
 #   need this ability should know the die and restart password.       #
 #                                                                     #
 
-<power
+#<power
        # hash: what hash these passwords are hashed with.
        # Requires the module for selected hash (m_md5.so, m_sha256.so
        # or m_ripemd160.so) be loaded and the password hashing module
@@ -208,12 +247,12 @@
 
        # diepass: Password for opers to use if they need to shutdown (die)
        # a server.
-       diepass=""
+       #diepass=""
 
        # restartpass: Password for opers to use if they need to restart
        # a server.
-       restartpass="">
-
+       #restartpass="">
+{{ conftag('power', 'power', ['diepass', 'restartpass'], ['hash']) }}
 
 #-#-#-#-#-#-#-#-#-#-  CONNECTIONS CONFIGURATION  -#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
@@ -409,9 +448,7 @@
                        'fakelag', 'localmax', 'globalmax', 'maxconnwarn', 'usednsbl', 'useident',
                        'limit', 'modes', 'requireident', 'requiressl', 'requireaccount', 'motd',
                        'allowmotdcolors', 'port'] %}
-{% for con in config.connects %}
-{{ confline('connect', con, [], connect_opts) }}
-{% endfor %}
+{{ multitags('connect', 'connects', [], connect_opts) }}
 
 
 #-#-#-#-#-#-#-#-#-#-#-#-  CIDR CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#-
@@ -425,23 +462,25 @@
 # http://en.wikipedia.org/wiki/CIDR#Prefix_aggregation                #
 #                                                                     #
 
-<cidr
+#<cidr
       # ipv4clone: specifies how many bits of an IP address should be
       # looked at for clones. The default only looks for clones on a
       # single IP address of a user. You do not want to set this
       # extremely low. (Values are 0-32).
-      ipv4clone="32"
+      #ipv4clone="32"
 
       # ipv6clone: specifies how many bits of an IP address should be
       # looked at for clones. The default only looks for clones on a
       # single IP address of a user. You do not want to set this
       # extremely low. (Values are 0-128).
-      ipv6clone="128">
+      #ipv6clone="128">
+
+{{ conftag('cidr', 'cidr', ['ipv4clone', 'ipv6clone']) }}
 
 # This file has all the information about oper classes, types and o:lines.
 # You *MUST* edit it.
 #<include file="conf/examples/opers.conf.example">
-<include file="/usr/local/etc/inspircd/opers.conf">
+{{ include('opers.conf') }}
 
 # This file has all the information about server links and ulined servers.
 # You *MUST* edit it if you intend to link servers.
